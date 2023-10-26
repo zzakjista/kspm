@@ -3,11 +3,11 @@ from templates import set_template
 
 parser = argparse.ArgumentParser(description='RecPlay')
 
-parser.add_argument('--template', type=str, default='train', choices = ['train','test'])
+parser.add_argument('--template', type=str, default='test', choices = ['train','test']) # train, test
 
-# data #
-parser.add_argument('--rawdata_path', type=str, default=None)
-parser.add_argument('--preprocessed_data_path', type=str, default=None)
+# path #
+parser.add_argument('--rawdata_path', type=str, default='kospi200_10Y_price_investor.pickle')
+parser.add_argument('--preprocessed_data_path', type=str, default='preprocessed_data.pickle')
 
 # preprocessing #
 parser.add_argument('--train_ratio', type=float, default=0.7)
@@ -15,8 +15,8 @@ parser.add_argument('--val_ratio', type=float, default=0.2)
 parser.add_argument('--test_ratio', type=float, default=0.1)
 
 parser.add_argument('--scaler', type=str, default='standard_scaler', choices=['standard_scaler','minmax_scaler','robust_scaler'])
-parser.add_argument('--x_window_size', type=int, default=None)
-parser.add_argument('--y_window_size', type=int, default=None)
+parser.add_argument('--x_window_size', type=int, default=20)
+parser.add_argument('--y_window_size', type=int, default=5)
 
 
 
@@ -28,6 +28,8 @@ parser.add_argument('--stock_code', type=str, default='005930')
 
 # agent #
 parser.add_argument('--initial_balance', type=int, default=1000000)
+parser.add_argument('--min_trading_unit', type=int, default=1)
+parser.add_argument('--max_trading_unit', type=int, default=2)
 
 # policy #
 parser.add_argument('--hidden_size', type=int, default=64)
@@ -40,7 +42,6 @@ parser.add_argument('--optimizer', type=str, default='adam', choices=['adam','sg
 parser.add_argument('--lr', type=float, default=0.005)
 parser.add_argument('--batch_size', type=int, default=32)
 parser.add_argument('--device', type=str, default='cpu', choices=['cpu','cuda'])
-
 
 parser.add_argument('--action_kind', type=int, default='3') # buy, sell , hold
 parser.add_argument('--max_episode', type=int, default='10')

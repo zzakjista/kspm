@@ -1,1 +1,2 @@
 ROOT_DATA_PATH = 'data'
+ROOT_SCALER_PATH = 'scaler'

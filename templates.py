@@ -3,7 +3,7 @@ def set_template(args):
     if args.template is None:
         return
 
-    elif args.template.startswith('www'):
+    elif args.template.startswith('train'):
         args.rawdata_path = 'kospi200_10Y_price_investor.pickle'
         args.preprocessed_data_path = 'preprocessed_data.pickle'
         args.train_ratio = 0.7
@@ -15,6 +15,8 @@ def set_template(args):
 
         # agent #
         args.initial_balance = 1000000
+        args.min_trading_unit = 1
+        args.max_trading_unit = 2
 
         args.device = 'cpu'
 

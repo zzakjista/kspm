@@ -16,6 +16,10 @@ class Trainer:
         self.agent.env.state = self.agent.env.state_data['train']
         self.agent.env.chart = self.agent.env.chart_data['train']
         self.len = self.agent.env.state.shape[0] - 1
+        self.agent.policy_net.train()
+        self.agent.critic_net.train()
+
+
         # 일단은 에피소드를 들어가기전에 환경과 에이전트 세팅까지 되어있음 # 
 
         # for e in range(self.max_episode):
@@ -31,9 +35,13 @@ class Trainer:
             #     print('model is saved')
 
     def evaluate(self, test_mode):
+        self.agent.policy_net.eval()
+        self.agent.critic_net.eval()
+        
         if test_mode == 'val':
             self.agent.env.state = self.agent.env.state_data['val']
             self.agent.env.chart = self.agent.env.chart_data['val']
+            
         if test_mode == 'test':
             self.env.state = self.env.state_data['test']
             self.env.chart = self.env.chart_data['test']
@@ -47,33 +55,49 @@ class Trainer:
         self.done = False
         self.agent.reset()
         total_profit = 0
-
+        total_policy_loss = 0
+        total_critic_loss = 0 
         for t in range(self.len):
-            
-            state = self.agent.env.get_state()
-            state = torch.tensor(state, device=self.device, dtype=torch.float32).unsqueeze(0)
-            action = self.agent.select_action(state)
-            next_state = self.agent.env.get_next_state()
             reward = 0 
-            profitloss = self.agent.act(action, 0.5)
+            state = self.agent.env.get_state()
+            state = torch.tensor(state, device=self.device, dtype=torch.float32).unsqueeze(0) # (1, sequence_length, feature_size)
+            # policy # 
+            action, log_prob = self.agent.select_action(state) # policy_net에서 action 선택
+            next_state = self.agent.env.get_next_state()
+            next_state = torch.tensor(next_state, device=self.device, dtype=torch.float32).unsqueeze(0)
+            profitloss = self.agent.act(action, 0.5)x # confidence(0.5) 파라미터라이징 필요 #
             reward += profitloss
-            self.agent.memory.push(state, action, reward, next_state, self.done) # !! 언제 push할 지 정해야함 !!
+
+            # critic #
+            state_value = self.agent.critic_net(state) # critic_net에서 state_value 추정
+            next_state_value = self.agent.critic_net(next_state)
+            self.agent.memory.push(state_value, log_prob, reward, next_state_value, self.done) # !! 언제 push할 지 정해야함 !!
+
             self.agent.env.current_idx += 1
             self.agent.env.state_idx += 1
             if t == self.len-1: # 마지막 state 이전 state에서 done = True
                 self.done = True
             
-            if len(self.agent.memory) > self.batch_size:
-                experiences = self.agent.memory.sample(self.batch_size)
-                # !! self.agent.optimize_model(experiences) !! 
-                
+            # optimize model and clear batch #
+            if len(self.agent.memory) == self.batch_size:
+                experiences = self.agent.memory.pop(self.batch_size)
+                policy_loss, critic_loss = self.agent.optimize_model(experiences)
+                # train_loss += loss
+                # print('train_loss:', train_loss)
+                total_policy_loss += policy_loss/self.batch_size
+                total_critic_loss += critic_loss/self.batch_size
+                print('policy_loss:', policy_loss)
+                print('critic_loss:', critic_loss)
+
             if self.done:
+                total_profit = (self.agent.portfolio_value-self.agent.initial_balance)/self.agent.initial_balance
                 print('완료')
-                print('total_profit:', (self.agent.portfolio_value-self.agent.initial_balance)/self.agent.initial_balance)
+                print('total_profit:', total_profit)
                 print('buy_cnt:', self.agent.buy_cnt)
                 print('sell_cnt:', self.agent.sell_cnt)
                 print('hold_cnt:', self.agent.hold_cnt)
-                break
+                return total_profit, total_policy_loss, total_critic_loss
+        
     
     
         

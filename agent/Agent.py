@@ -1,14 +1,17 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
 import numpy as np
 import random  
 import math 
 
 class A2C:
 
-    def __init__(self, environment, policy_net, critic_net, args): # replay memory가 필요없을 것으로 판단
+    def __init__(self, environment, policy_net, critic_net, memory, args): # replay memory가 필요없을 것으로 판단
         self.device = args.device
         self.env = environment
+        self.memory = memory
         # policy & critic  #
         self.hidden_size = args.hidden_size
         self.num_layers = args.num_layers
@@ -18,17 +21,14 @@ class A2C:
 
         # train #
         self.gamma = args.gamma
-        self.lr = args.lr
+        self.policy_lr = args.policy_lr
+        self.critic_lr = args.critic_lr
         self.batch_size = args.batch_size
 
-        self.optimizer_policy = torch.optim.Adam(self.policy_net.parameters(), lr=self.lr)
-        self.optimizer_critic = torch.optim.Adam(self.critic_net.parameters(), lr=self.lr)
+        # self.optimizer_policy = optim.Adam(self.policy_net.parameters(), lr=self.policy_lr)
+        # self.optimizer_critic = optim.Adam(self.critic_net.parameters(), lr=self.critic_lr)
+        self.optimizer = optim.Adam(list(self.policy_net.parameters()) + list(self.critic_net.parameters()), lr=self.policy_lr) # optimizer 통합 버전
         self.loss_critic = nn.MSELoss()
-
-        # self.steps_done = 0
-        # self.eps_start = args.eps_start
-        # self.eps_end = args.eps_end
-        # self.eps_decay = args.eps_decay
 
         # trade #
         self.initial_balance = args.initial_balance # 초기 자본금
@@ -82,26 +82,21 @@ class A2C:
         return (self.ratio_hold, self.ratio_portfolio_value, self.stock_profitloss)
 
     def select_action(self, state):
-        # sample = random.random() ----> 이 
-        # eps_threshold = self.eps_end + (self.eps_start - self.eps_end) * \
-        #                 math.exp(-1. * self.steps_done / self.eps_decay) 
-        # # eps_threshold : end + (start - end) * exp(-1 * steps / decay) 가 0에 가까워질수록 랜덤 액션을 취할 확률이 줄어듬
-        # self.steps_done += 1 # steps_done이 커질수록 eps_threshold가 작아짐
     
 
         # DEV : A2C에서는 epsilon greedy 탐험 방식은 a2c에서 사용하진 않음, Softmax의 temperature을 조절하는 방식으로 탐험을 하는 방법이 있음 
         # -> 노션 백로그 참조 https://www.notion.so/24c2c61d5fe84ccc97048c48f8e6cd33
         # Softmax T : exp(x/T) / sum(exp(x/T)) -> T가 작아질수록 랜덤 액션을 취할 확률이 줄어듬
         # if sample > eps_threshold: # 랜덤 액션을 취할 확률을 줄여나감
-
-        with torch.no_grad():
-            self.policy_net.eval() 
-            prob = self.policy_net(state) # 정책 신경망으로 행동을 예측 각 행동에 대한 확률 
-            action = pred.max(1)[1].view(1, 1) # 행동 중 가장 큰 값의 인덱스를 가져옴 Softmax. 훈련 중엔 max값이 아닌 확률에 의해 sampling
-            self.policy_net.train()
-        return action #.max(1)[1]
-        # else:
-        #     return torch.tensor([[random.randrange(self.action_kind)]], device=self.device, dtype=torch.long) # random action 
+        prob = self.policy_net(state) # 정책 신경망으로 행동을 예측 각 행동에 대한 확률 
+        prob /= 5 # 평탄화 계수 args.T 점점 줄이면 좋을텐데
+        prob = F.softmax(prob, dim=1) # 각 행동에 대한 확률을 구함
+        action = prob.multinomial(num_samples=1).item()
+        # 행동 중 가장 큰 값의 인덱스를 가져옴 Softmax. 훈련 중엔 max값이 아닌 확률에 의해 sampling해보자
+        prob = prob.squeeze(0)
+        prob = torch.log(prob)
+        log_prob = prob[action]
+        return action , log_prob
 
     # 훈련 중엔 거래 관련 제약을 적용하는 것이 좋지않아보임, policy가 예측한대로 행동하게끔 하고, 훈련이 끝난 후에 제약을 걸어주는 것이 좋을 듯함
     # 즉 제약을 키고 끌 수 있게 기능 개발 필요
@@ -159,6 +154,7 @@ class A2C:
         buy_cost =  price * (1 + self.trading_charge) * trading_unit # 매수 비용
         if buy_cost > 0:
             self.avg_buy_price = (self.avg_buy_price * self.num_stocks + price) / (self.num_stocks + trading_unit)  # 주당 매수 단가 갱신
+
             self.balance -= buy_cost  # 보유 현금을 갱신
             self.num_stocks += trading_unit  # 보유 주식 수를 갱신
             self.buy_cnt += 1  # 매수 횟수 증가
@@ -177,11 +173,27 @@ class A2C:
     
     def hold(self):
         self.hold_cnt += 1 
-        print("Hold")
+        # print("Hold")
 
 
-    def optimize_model(self, action_pred):
-        pass 
+    def optimize_model(self, experiences):
+        policy_loss = 0
+        critic_loss = 0
+        for experience in experiences:
+            log_prob = experience.log_prob
+            reward = experience.reward
+            next_state_value = experience.next_state_value
+            state_value = experience.state_value
+            td_target = reward + self.gamma * next_state_value
+            advantage = td_target - state_value
+            policy_loss += self.policy_loss_calculate(log_prob, advantage)
+            critic_loss += self.critic_loss_calculate(td_target, state_value)
+        loss = policy_loss + critic_loss
+        loss.backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+        return policy_loss.item(), critic_loss.item()
+        
         # optimize_model 개발 사항
         # guideline
         # 1. state를 env로부터 받는다.
@@ -203,6 +215,11 @@ class A2C:
         # Gt = reward + gamma * Gt+1
         # Gt or Q-value를 구하는 함수가 있어야한다 
         # 결국 Policy network말고도 Value network가 필요하다. -> A2C
+
+    def policy_loss_calculate(self, log_prob, advantage):
+        return -log_prob * advantage
+    def critic_loss_calculate(self, td_target, state_value):
+        return self.loss_critic(td_target, state_value)
 
         
 

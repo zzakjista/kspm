@@ -16,7 +16,7 @@ parser.add_argument('--test_ratio', type=float, default=0.1)
 
 parser.add_argument('--scaler', type=str, default='standard_scaler', choices=['standard_scaler','minmax_scaler','robust_scaler'])
 parser.add_argument('--x_window_size', type=int, default=20)
-parser.add_argument('--y_window_size', type=int, default=5)
+# parser.add_argument('--y_window_size', type=int, default=5)
 
 ## reinforce Learning ##
 
@@ -24,7 +24,7 @@ parser.add_argument('--y_window_size', type=int, default=5)
 parser.add_argument('--stock_code', type=str, default='005930')
 
 # agent #
-parser.add_argument('--initial_balance', type=int, default=1000000)
+parser.add_argument('--initial_balance', type=int, default=10000000000)
 parser.add_argument('--min_trading_unit', type=int, default=1)
 parser.add_argument('--max_trading_unit', type=int, default=2)
 parser.add_argument('--model_name', type=str, default='VALSTM', choices=['VALSTM','CNNLSTM'])
@@ -53,9 +53,10 @@ parser.add_argument('--max_episode', type=int, default='10')
 parser.add_argument('--gamma', type=float, default='0.99') # discount rate
 
 
-parser.add_argument('--eps_start', type=float, default='0.9')
-parser.add_argument('--eps_end', type=float, default='0.1')
-parser.add_argument('--eps_decay', type=float, default='0.99')
+# parser.add_argument('--eps_start', type=float, default='0.9')
+# parser.add_argument('--eps_end', type=float, default='0.1')
+# parser.add_argument('--eps_decay', type=float, default='0.99')
+
 # Replay Memory # 
 parser.add_argument('--capacity', type=int, default='1000')
 

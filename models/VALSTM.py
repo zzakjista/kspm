@@ -16,8 +16,24 @@ class VALSTM(nn.Module) :
                                    dropout=args.dropout,
                                    batch_first=True)
         self.fc = nn.Linear(self.hidden_size, self.num_classes)
+        # orthogonal initialization
+        self._initialize()
 
-        
+
+            
+    def _initialize(self):
+        for name, param in self.lstm_layers.named_parameters():
+            if 'weight_ih' in name:
+                nn.init.orthogonal_(param.data)
+            elif 'weight_hh' in name:
+                nn.init.orthogonal_(param.data)
+            elif 'bias' in name:
+                param.data.fill_(0)
+            else:
+                raise ValueError
+        nn.init.orthogonal_(self.fc.weight)
+        nn.init.constant_(self.fc.bias, 0.1)
+
     def forward(self, x) :
         h_0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(self.device)
         c_0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(self.device)

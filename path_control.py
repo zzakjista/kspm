@@ -7,7 +7,6 @@ class path_master(Path):
         self.rawdata_path = args.rawdata_path
         self.preprocessed_data_path = args.preprocessed_data_path
 
-
     def get_data_root_path(self):
         return Path(ROOT_DATA_PATH)
     
@@ -24,6 +23,14 @@ class path_master(Path):
     def get_scaler_root_path(self):
         return Path(ROOT_SCALER_PATH)
     
+    def get_pretrained_root_path(self):
+        return Path(ROOT_EXPERIMENT_PATH)
     
-    
+    def get_pretrained_folder_path(self, args):
+        pretrained_folder_path = self.get_pretrained_root_path().joinpath(args.version).joinpath(args.pretrained_version)
+        print(pretrained_folder_path)
+        if not pretrained_folder_path.exists():
+            raise Exception('pretrained folder does not exist')
+        return pretrained_folder_path
 
+    

@@ -1,7 +1,7 @@
 import random
 from collections import namedtuple, deque
 
-Experience = namedtuple("Experience", field_names=["state_value", "log_prob", "reward", "next_state_value", "done"]) # 저장할 변수 지정
+Experience = namedtuple("Experience", field_names=["state_value", "prob", "reward", "next_state_value", "done"]) # 저장할 변수 지정
 
 class ReplayMemory(object):
 

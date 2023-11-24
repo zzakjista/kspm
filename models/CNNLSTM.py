@@ -3,15 +3,14 @@ import torch.nn as nn
 
 
 class CNNLSTM(nn.Module):
-    def __init__(self, in_channel, out_channel, input_size, hidden_size, num_layers, num_classes, dropout=0.0):
+    def __init__(self, num_classes, args):
         super(CNNLSTM, self).__init__()
-        self.in_channel = in_channel
-        self.out_channel = out_channel
+        self.in_channel = args.in_channel
+        self.out_channel = args.out_channel
         self.num_classes = num_classes
-        #self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-        self.dropout = nn.Dropout(dropout)
+        self.hidden_size = args.hidden_size
+        self.num_layers = args.num_layers
+        self.dropout = nn.Dropout(args.dropout)
         self.conv1d_1 = nn.Conv1d(in_channels=self.in_channel,
                                 out_channels=16,
                                 kernel_size=3,
@@ -30,6 +29,21 @@ class CNNLSTM(nn.Module):
                                    batch_first=True)
 
         self.fc = nn.Linear(self.hidden_size, self.num_classes)
+        # orthogonal initialization
+        self._initialize()
+
+    def _initialize(self):
+        for name, param in self.lstm.named_parameters():
+            if 'weight_ih' in name:
+                nn.init.orthogonal_(param.data)
+            elif 'weight_hh' in name:
+                nn.init.orthogonal_(param.data)
+            elif 'bias' in name:
+                param.data.fill_(0)
+            else:
+                raise ValueError
+        nn.init.orthogonal_(self.fc.weight)
+        nn.init.constant_(self.fc.bias, 0.1)
 
     def forward(self, x):
    # Raw x shape : (B, S, F) => (B, 10, 3)

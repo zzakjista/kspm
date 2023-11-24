@@ -18,7 +18,6 @@ class Preprocesser:
         self.val_ratio = args.val_ratio
         self.test_ratio = args.test_ratio
         self.x_window_size = args.x_window_size # train set window size
-        self.y_window_size = args.y_window_size # label window size
         self.scaler = args.scaler
         
         self.raw_data_path = args.rawdata_path
@@ -102,7 +101,7 @@ class Preprocesser:
 
         if not reuse:
             scaler.fit(train)
-            scaler_set[stock_code] = scaler
+            scaler_set[stock_code] = scaler 
             with open(scaler_path, 'wb') as f:
                 pickle.dump(scaler_set, f)
         try:
@@ -143,19 +142,12 @@ class Preprocesser:
                 pickle.dump(scaler_set, f)
         return scaler_set
 
-    def make_sequence_x(self, X): # x_window_size와 y_window_size를 받아 X의 시퀀스를 생성
+    def make_sequence_x(self, X): # x_window_size를 받아 X의 state sequence를 시퀀스를 생성
         seq = []
         for idx in range(0,len(X)-self.x_window_size+1): # 강화학습이라면 y_window_size를 고려하지 않아도됨 -self.y_window_size
             x = X[idx : idx + self.x_window_size,:]
             seq.append(x)
         return np.array(seq)
-
-    def make_label(self, y): # X의 20일 데이터 이후의 5일 수익률을 계산
-        y = y.shift(-1 * self.x_window_size)
-        y = y * 0.01 + 1
-        y = y.rolling(self.y_window_size).apply(np.prod) - 1 # N일 뒤의 수익률 예측
-        y.dropna(inplace=True)
-        return y
 
     def preprocess(self, data): # 필수 전처리 : 거래정지 -> 지표생성 -> faeture, 결측치 제거 
         keys = list(data.keys())
@@ -219,7 +211,7 @@ class Preprocesser:
 
     def chaikin_oscillator(self, df, short_period, long_period):
         if 'AD' not in df.columns:
-            df['AD'] = Accumulation_Distribution(df)
+            df['AD'] = self.Accumulation_Distribution(df)
         AD_short = df['AD'].rolling(short_period).mean()
         AD_long = df['AD'].rolling(long_period).mean()
         CO = AD_short - AD_long
@@ -235,11 +227,12 @@ class Preprocesser:
         VR = (up + same/2) / (down + same/2) * 100
         return list(VR)
 
-    def generate_price_indicators(self, df):
+    def generate_price_indicators(self, df): # window size에 따라 최적의 지표가 있지않을까?
         df['RSI'] = self.RSI(df)
         df['STOCH'] = self.STOCH(df)
         df['MACD'] = self.MACD(df)
         df['BB_P_B'] = self.BBANDS(df)
+        df['AROON_OSC'] = self.AROONOSC(df)
         return df
 
     def RSI(self, df):
@@ -259,86 +252,11 @@ class Preprocesser:
         BB_P_B = (df['종가'] - lw_band) / (up_band - lw_band)
         return BB_P_B
 
+    def AROONOSC(self, df):
+        AROON_OSC = talib.AROONOSC(df['고가'], df['저가'], timeperiod=14)
+        return AROON_OSC
+
     # 거래정지된 데이터 제거 # 
     def drop_zero_volume(self, df):
         df = df[df['거래량']!=0]
         return df
-    
-
-    # def make_all_stock_dataset(self, dataset): # 모든 주식 데이터를 하나의 데이터셋으로 만듦
-        # x_train = []
-        # y_train = []
-        # x_val = []
-        # y_val = []
-        # x_test = []
-        # y_test = []
-        # keys = list(dataset.keys())
-        # for key in keys:
-        #     data = dataset[key]
-        #     x_train.append(data['X_train'])
-        #     y_train.append(data['y_train'])
-        #     x_val.append(data['X_val'])
-        #     y_val.append(data['y_val'])
-        #     x_test.append(data['X_test'])
-        #     y_test.append(data['y_test'])
-        # x_train = np.concatenate(x_train)
-        # y_train = np.concatenate(y_train)
-        # x_val = np.concatenate(x_val)
-        # y_val = np.concatenate(y_val)
-        # x_test = np.concatenate(x_test)
-        # y_test = np.concatenate(y_test)
-
-        # train = {'X':x_train,'y': y_train}
-        # val = {'X':x_val,'y': y_val}
-        # test = {'X':x_test,'y': y_test}
-        # dataset = {'train':train,'val':val,'test':test}
-        # return dataset
-
-
-    # def make_all(self)
-    #     x_train = []
-    #     y_train = []
-    #     x_valid = []
-    #     y_valid = []
-    #     x_test = []
-    #     y_test = []
-    #     splited = list(datas.keys())
-    #     for split in splited:
-    #         stocks = list(datas[split].keys())
-    #         data = datas[split]
-    #         for stock in stocks:
-    #             df_x = data[stock]['X']
-    #             y = data[stock]['y']
-    
-    #             if df_x is not None and y is not None:
-    #                 if split == 'train':
-    #                     y_train.extend(y)
-    #                 elif split == 'val':
-    #                     y_valid.extend(y)
-    #                 else:
-    #                     y_test.extend(y)
-
-    #                 for idx in range(0,len(df_x)-self.x_window_size-self.y_window_size+1):
-    #                     x = df_x[idx : idx + self.x_window_size]
-
-    #                     if split == 'train':
-    #                         x_train.append(x)
-    #                     elif split == 'val':
-    #                         x_valid.append(x)
-    #                     else:
-    #                         x_test.append(x)
-    #             else:
-    #                 pass
-
-    #     train = {'X':np.array(x_train),'y': np.array(y_train).reshape(-1,1)}
-    #     val = {'X':np.array(x_valid),'y': np.array(y_valid).reshape(-1,1)}
-    #     test = {'X':np.array(x_test),'y': np.array(y_test).reshape(-1,1)}
-    #     dataset = {'train':train,'val':val,'test':test}
-    #     return dataset
-
-    # def _split_data(self, df):
-    # # label = df.pop('등락률')
-    # train_df, val_df, test_df = self._split_data(df)
-    # # train_label, val_label, test_label = self._split_data(label)
-
-    # return (train_df, val_df, test_df)
